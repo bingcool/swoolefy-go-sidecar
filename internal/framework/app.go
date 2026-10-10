@@ -3,7 +3,6 @@ package framework
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"os/signal"
 	"sync/atomic"
@@ -47,7 +46,7 @@ func RunSignals(cfg config.Config, plugins []plugin.Plugin, sig <-chan os.Signal
 	if err := PrepareSocket(cfg.SocketPath); err != nil {
 		return err
 	}
-	ln, err := net.Listen("unix", cfg.SocketPath)
+	ln, err := ListenSocket(cfg.SocketPath)
 	if err != nil {
 		return err
 	}
@@ -58,9 +57,6 @@ func RunSignals(cfg config.Config, plugins []plugin.Plugin, sig <-chan os.Signal
 		}
 		RemoveOwnSocket(cfg.SocketPath)
 	}()
-	if err := os.Chmod(cfg.SocketPath, 0600); err != nil {
-		return err
-	}
 	state.ListenerOK.Store(true)
 
 	root, cancel := context.WithCancel(context.Background())

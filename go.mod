@@ -1,6 +1,6 @@
 module swoolefy-go-sidecar
 
-go 1.20
+go 1.26.0
 
 require github.com/apache/rocketmq-clients/golang/v5 v5.1.2
 

@@ -124,7 +124,7 @@ func (c *Consumer) Receive(ctx context.Context, raw json.RawMessage) plugin.Resu
 	}
 	messages, err := client.Receive(ctx, req.MaxNum, time.Duration(req.InvisibleMs)*time.Millisecond)
 	if err != nil {
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || isEmptyReceive(err) {
 			return plugin.OK(map[string]any{"messages": []any{}})
 		}
 		return classify(ctx, err)
@@ -281,7 +281,7 @@ func classify(ctx context.Context, err error) plugin.Result {
 	if errors.As(err, &invalid) {
 		return plugin.Fail("INVALID_ARGUMENT", "rejected")
 	}
-	return plugin.Fail("UNAVAILABLE", "upstream unavailable")
+	return plugin.Fail("UNAVAILABLE", err.Error())
 }
 
 var (

@@ -3,10 +3,12 @@ package rocketmq
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"sync"
 	"testing"
 	"time"
+
+	golang "github.com/apache/rocketmq-clients/golang/v5"
+	v2 "github.com/apache/rocketmq-clients/golang/v5/protocol/v2"
 
 	"swoolefy-go-sidecar/internal/framework/plugin"
 )
@@ -165,9 +167,36 @@ func TestAckUsesReceiptFields(t *testing.T) {
 }
 
 func TestAckReceiptIsNotCached(t *testing.T) {
-	err := ackReceipt(context.Background(), nil, "rh", "mid", "order")
-	if !errors.Is(err, errReceiptAckUnsupported) {
+	err := ackReceipt(context.Background(), nil, "g", "", "rh", "mid", "order")
+	if err == nil {
+		t.Fatal("nil consumer")
+	}
+}
+
+func TestAckReceiptReadsSDKClient(t *testing.T) {
+	cfg := sdkConfig(Config{Endpoint: "127.0.0.1:1"})
+	cfg.ConsumerGroup = "g"
+	consumer, err := golang.NewSimpleConsumer(cfg, golang.WithSubscriptionExpressions(map[string]*golang.FilterExpression{
+		"t": golang.SUB_ALL,
+	}))
+	if err != nil {
 		t.Fatal(err)
+	}
+	cliVal := consumerField(consumer, "cli")
+	if !cliVal.IsValid() || cliVal.IsNil() {
+		t.Fatal("cli")
+	}
+	signer, ok := cliVal.Interface().(golang.Client)
+	if !ok {
+		t.Fatalf("signer %T", cliVal.Interface())
+	}
+	if signer.GetClientID() == "" {
+		t.Fatal("empty client id")
+	}
+	endpointsVal := structField(cliVal, "accessPoint")
+	endpoints, ok := endpointsVal.Interface().(*v2.Endpoints)
+	if !ok || endpoints == nil || len(endpoints.GetAddresses()) == 0 {
+		t.Fatalf("endpoints %#v ok=%v", endpoints, ok)
 	}
 }
 

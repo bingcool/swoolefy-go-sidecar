@@ -32,6 +32,13 @@ func TestRunStopsOnSignalAndDeletesSocket(t *testing.T) {
 		}, []plugin.Plugin{item, other}, sig)
 	}()
 	waitListen(t, path)
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("socket mode %o", info.Mode().Perm())
+	}
 	conn, err := net.Dial("unix", path)
 	if err != nil {
 		t.Fatal(err)
