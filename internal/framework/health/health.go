@@ -7,9 +7,8 @@ import (
 	"time"
 
 	"swoolefy-go-sidecar/internal/framework/plugin"
+	"swoolefy-go-sidecar/internal/version"
 )
-
-const Version = "0.1.0"
 
 // State 是 health.check 读取的进程状态。不在这里发探测请求。
 type State struct {
@@ -22,7 +21,7 @@ type State struct {
 func Mount(router plugin.MethodRegistrar, state *State, contributors []plugin.HealthContributor) error {
 	return router.Handle("health.check", func(ctx context.Context, payload json.RawMessage) plugin.Result {
 		body := map[string]any{
-			"version":    Version,
+			"version":    version.Version,
 			"uptimeMs":   time.Since(state.Started).Milliseconds(),
 			"listenerOk": state.ListenerOK.Load(),
 			"inflight":   int(state.Inflight.Load()),

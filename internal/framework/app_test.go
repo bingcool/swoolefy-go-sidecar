@@ -60,6 +60,27 @@ func TestRunStopsOnSignalAndDeletesSocket(t *testing.T) {
 	if resp.Code != "OK" || payload["version"] != "0.1.0" {
 		t.Fatalf("%+v", resp)
 	}
+	verConn, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verRaw, _ := json.Marshal(ipc.Request{RequestID: "v", Method: "sidecar.version", Payload: []byte(`{}`), TimeoutMs: 500})
+	if err = ipc.WriteFrame(verConn, verRaw); err != nil {
+		t.Fatal(err)
+	}
+	verBody, err := ipc.ReadFrame(verConn, 65536)
+	_ = verConn.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var verResp ipc.Response
+	if err = json.Unmarshal(verBody, &verResp); err != nil {
+		t.Fatal(err)
+	}
+	verPayload, _ := verResp.Payload.(map[string]any)
+	if verResp.Code != "OK" || verPayload["version"] != "0.1.0" {
+		t.Fatalf("%+v", verResp)
+	}
 	if _, ok := payload["producerReady"]; ok {
 		t.Fatal("producerReady must stay absent without the plugin field")
 	}

@@ -51,7 +51,8 @@ PHP 侧入口是 `Swoolefy\Core\Sidecar`。`EventCtrl::init()` 末尾由 `Sideca
 
 | 方法 | 谁在调用 | 行为 |
 | --- | --- | --- |
-| `health.check` | PHP `health()` | 返回监听是否就绪，以及 producer / consumer 的 ready 和发送计数 |
+| `sidecar.version` | PHP `SidecarClient::version()` / `RocketmqProducer::version()` | 只返回发布版本。版本号定义在 `internal/version/version.go` 的 `Version`，发新版本时改这一处后重新编译 |
+| `health.check` | PHP `health()` | 返回监听是否就绪，以及 producer / consumer 的 ready 和发送计数。其中的 `version` 与 `sidecar.version` 是同一个常量 |
 | `rocketmq.producer.send` | `RocketmqProducer::send()` | 校验 topic 是否在允许列表内，解码 `bodyBase64`，发给代理。`delayMs` 为 0 是立即投递，大于 0 是相对延迟 |
 | `rocketmq.consumer.receive` | 消费进程基类 | 按 `consumerGroup` + `topic` 拉取。`maxNum` 限制在 1–32，`invisibleMs` 限制在 1–300000。空结果返回 `OK` 和空列表 |
 | `rocketmq.consumer.ack` | `onMessage()` 成功之后 | 用 `receiptHandle`、`messageId`、`topic` 确认。不在进程里缓存 SDK 的消息对象 |

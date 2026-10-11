@@ -14,6 +14,7 @@ import (
 	"swoolefy-go-sidecar/internal/framework/ipc"
 	sidelog "swoolefy-go-sidecar/internal/framework/log"
 	"swoolefy-go-sidecar/internal/framework/plugin"
+	"swoolefy-go-sidecar/internal/version"
 )
 
 // Run 监听 UDS，注册插件，并在 SIGTERM 后按固定顺序退出。
@@ -34,6 +35,9 @@ func RunSignals(cfg config.Config, plugins []plugin.Plugin, sig <-chan os.Signal
 		if contributor, ok := item.(plugin.HealthContributor); ok {
 			contributors = append(contributors, contributor)
 		}
+	}
+	if err := version.Mount(router); err != nil {
+		return err
 	}
 	if err := health.Mount(router, state, contributors); err != nil {
 		return err
