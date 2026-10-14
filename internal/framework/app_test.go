@@ -12,6 +12,7 @@ import (
 	"swoolefy-go-sidecar/internal/framework/config"
 	"swoolefy-go-sidecar/internal/framework/ipc"
 	"swoolefy-go-sidecar/internal/framework/plugin"
+	"swoolefy-go-sidecar/internal/version"
 )
 
 func TestRunStopsOnSignalAndDeletesSocket(t *testing.T) {
@@ -57,7 +58,7 @@ func TestRunStopsOnSignalAndDeletesSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	payload, _ := resp.Payload.(map[string]any)
-	if resp.Code != "OK" || payload["version"] != "0.1.0" {
+	if resp.Code != "OK" || payload["version"] != version.Version {
 		t.Fatalf("%+v", resp)
 	}
 	verConn, err := net.Dial("unix", path)
@@ -78,7 +79,7 @@ func TestRunStopsOnSignalAndDeletesSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	verPayload, _ := verResp.Payload.(map[string]any)
-	if verResp.Code != "OK" || verPayload["version"] != "0.1.0" {
+	if verResp.Code != "OK" || verPayload["version"] != version.Version {
 		t.Fatalf("%+v", verResp)
 	}
 	if _, ok := payload["producerReady"]; ok {

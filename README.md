@@ -52,10 +52,13 @@ PHP 侧入口是 `Swoolefy\Core\Sidecar`。`EventCtrl::init()` 末尾由 `Sideca
 | 方法 | 谁在调用 | 行为 |
 | --- | --- | --- |
 | `sidecar.version` | PHP `SidecarClient::version()` / `RocketmqProducer::version()` | 只返回发布版本。版本号定义在 `internal/version/version.go` 的 `Version`，发新版本时改这一处后重新编译 |
-| `health.check` | PHP `health()` | 返回监听是否就绪，以及 producer / consumer 的 ready 和发送计数。其中的 `version` 与 `sidecar.version` 是同一个常量 |
-| `rocketmq.producer.send` | `RocketmqProducer::send()` | 校验 topic 是否在允许列表内，解码 `bodyBase64`，发给代理。`delayMs` 为 0 是立即投递，大于 0 是相对延迟 |
-| `rocketmq.consumer.receive` | 消费进程基类 | 按 `consumerGroup` + `topic` 拉取。`maxNum` 限制在 1–32，`invisibleMs` 限制在 1–300000。空结果返回 `OK` 和空列表 |
+| `health.check` | PHP `health()` | 返回监听是否就绪，以及 producer / consumer 的 ready、发送计数和 `capabilities`（支持的能力列表）。其中的 `version` 与 `sidecar.version` 是同一个常量 |
+| `rocketmq.producer.send` | `RocketmqProducer::send()` | 校验 topic 是否在允许列表内，解码 `bodyBase64`，校验并设置 `tag`、`keys`、`properties`、`delayMs` / `deliverAtMs`（互斥）、`messageGroup`，发给代理。代理因请求内容拒绝（400xx / 413xx / 431xx）时返回 `INVALID_ARGUMENT` 和状态码名，不重连 |
+| `rocketmq.consumer.receive` | 消费进程基类 | 按 `consumerGroup` + `topic` 拉取。订阅过滤用 `consumerTag`（Tag 表达式）或 `consumerSql`（SQL92 属性过滤，二选一），同一组 + Topic 第一次 receive 时订阅，之后条件变了返回 `INVALID_ARGUMENT` / `filter`。`maxNum` 限制在 1–32，`invisibleMs` 限制在 1–300000。每条带 `keys`、`properties`（去掉 `__` 开头的系统属性）、`messageGroup`、`bornTimestampMs`、`deliveryTimestampMs`。空结果返回 `OK` 和空列表 |
 | `rocketmq.consumer.ack` | `onMessage()` 成功之后 | 用 `receiptHandle`、`messageId`、`topic` 确认。不在进程里缓存 SDK 的消息对象 |
+| `rocketmq.consumer.changeInvisible` | `RocketmqRetryLaterException`、`extendInvisible()` | 用回执字段改不可见时间（10000–300000 毫秒），返回 proxy 新签发的 `receiptHandle`。RocketMQ 5.3.x 的 proxy 有缺陷 apache/rocketmq#9583，改完之后的 ack 可能不生效 |
+
+请求解码开了 `DisallowUnknownFields`。PHP 和本二进制要同一个版本发布：旧二进制收到新字段会拒绝，新二进制收到旧的 `key` 字段也会拒绝。
 
 消息正文进出都是 Base64。Go 日志只记 sidecar 名、方法、`requestId`、`code`、耗时，不记正文和密钥。
 

@@ -8,7 +8,7 @@ import (
 )
 
 // Version 是 sidecar 的发布版本。发新版本时只改这里，然后重新编译二进制。
-const Version = "1.0.0"
+const Version = "1.0.1"
 
 // Mount 注册 sidecar.version。PHP 用它读取 Version，不探测代理。
 func Mount(router plugin.MethodRegistrar) error {

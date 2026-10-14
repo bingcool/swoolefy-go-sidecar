@@ -2,7 +2,6 @@ package rocketmq
 
 import (
 	"context"
-	"time"
 
 	golang "github.com/apache/rocketmq-clients/golang/v5"
 	"github.com/apache/rocketmq-clients/golang/v5/credentials"
@@ -29,17 +28,24 @@ func openSDKProducer(ctx context.Context, cfg Config) (Sender, error) {
 	return &sdkSender{producer: producer}, nil
 }
 
-func (s *sdkSender) Send(ctx context.Context, topic string, body []byte, tag, key string, delay time.Duration) (string, error) {
-	msg := &golang.Message{Topic: topic, Body: body}
-	if tag != "" {
-		msg.SetTag(tag)
+func (s *sdkSender) Send(ctx context.Context, out outbound) (string, error) {
+	msg := &golang.Message{Topic: out.Topic, Body: out.Body}
+	if out.Tag != "" {
+		msg.SetTag(out.Tag)
 	}
-	if key != "" {
-		msg.SetKeys(key)
+	if len(out.Keys) > 0 {
+		msg.SetKeys(out.Keys...)
 	}
-	if delay > 0 {
-		// delay 是相对时长。用现在加上这段时间，不能把 Unix 毫秒再加一次。
-		msg.SetDelayTimestamp(time.Now().Add(delay))
+	for key, value := range out.Properties {
+		msg.AddProperty(key, value)
+	}
+	// SDK 按是否设置了投递时间 / 消息分组决定消息类型（DELAY / FIFO / NORMAL），
+	// 两者已在 buildOutbound 里互斥校验过。
+	if !out.DeliverAt.IsZero() {
+		msg.SetDelayTimestamp(out.DeliverAt)
+	}
+	if out.MessageGroup != "" {
+		msg.SetMessageGroup(out.MessageGroup)
 	}
 	receipts, err := s.producer.Send(ctx, msg)
 	if err != nil {

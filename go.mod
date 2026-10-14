@@ -2,7 +2,10 @@ module swoolefy-go-sidecar
 
 go 1.26.0
 
-require github.com/apache/rocketmq-clients/golang/v5 v5.1.2
+require (
+	github.com/apache/rocketmq-clients/golang/v5 v5.1.2
+	google.golang.org/protobuf v1.28.1
+)
 
 require (
 	contrib.go.opencensus.io/exporter/ocagent v0.6.0 // indirect
@@ -33,5 +36,4 @@ require (
 	google.golang.org/api v0.15.1 // indirect
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013 // indirect
 	google.golang.org/grpc v1.48.0 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
 )

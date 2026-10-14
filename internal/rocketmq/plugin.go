@@ -45,9 +45,26 @@ func (p *Plugin) Register(router plugin.MethodRegistrar) error {
 	}); err != nil {
 		return err
 	}
-	return router.Handle("rocketmq.consumer.ack", func(ctx context.Context, payload json.RawMessage) plugin.Result {
+	if err := router.Handle("rocketmq.consumer.ack", func(ctx context.Context, payload json.RawMessage) plugin.Result {
 		return p.consumer.Ack(ctx, payload)
+	}); err != nil {
+		return err
+	}
+	return router.Handle("rocketmq.consumer.changeInvisible", func(ctx context.Context, payload json.RawMessage) plugin.Result {
+		return p.consumer.ChangeInvisible(ctx, payload)
 	})
+}
+
+// Capabilities 是 health.check 里的能力声明。PHP 用它判断当前 sidecar 是否支持某个字段或方法。
+// 只追加，不修改已有字符串的含义。
+var Capabilities = []string{
+	"send.keys",
+	"send.properties",
+	"send.deliverAt",
+	"send.messageGroup",
+	"receive.meta",
+	"consumer.changeInvisible",
+	"subscribe.sql92",
 }
 
 func (p *Plugin) Start(ctx context.Context) error {
@@ -82,4 +99,5 @@ func (p *Plugin) Contribute(dst map[string]any) {
 	dst["sendFail"] = p.producer.sendFail.Load()
 	dst["sendTimeout"] = p.producer.sendWait.Load()
 	dst["consumerReady"] = p.consumer.ready.Load()
+	dst["capabilities"] = append([]string(nil), Capabilities...)
 }

@@ -18,7 +18,7 @@ func (f sdkFactory) Open(group string) (groupClient, error) {
 	return &sdkGroup{
 		cfg:   f.cfg,
 		group: group,
-		subs:  map[string]string{},
+		subs:  map[string]subscription{},
 	}, nil
 }
 
@@ -29,19 +29,40 @@ type sdkGroup struct {
 	cfg      Config
 	group    string
 	consumer golang.SimpleConsumer
-	subs     map[string]string
+	subs     map[string]subscription
 }
 
-func (g *sdkGroup) Subscribe(topic, tag string) error {
-	expr := "*"
-	if tag != "" && tag != "*" {
-		expr = tag
-	}
-	if prev, ok := g.subs[topic]; ok && prev == expr && g.consumer != nil {
+// Subscribe 加入或替换一个 Topic 的过滤条件并重启 SimpleConsumer。
+// 启动失败时撤回这次改动：组内所有 Topic 共用一个客户端，一条非法 SQL 不能让其他 Topic 也起不来。
+func (g *sdkGroup) Subscribe(topic string, sub subscription) error {
+	prev, had := g.subs[topic]
+	if had && prev == sub && g.consumer != nil {
 		return nil
 	}
-	g.subs[topic] = expr
-	return g.start()
+	g.subs[topic] = sub
+	err := g.start()
+	if err == nil {
+		return nil
+	}
+	if had {
+		g.subs[topic] = prev
+	} else {
+		delete(g.subs, topic)
+	}
+	if len(g.subs) > 0 {
+		_ = g.start()
+	}
+	return err
+}
+
+func filterExpression(sub subscription) *golang.FilterExpression {
+	if sub.Kind == filterSQL92 {
+		return golang.NewFilterExpressionWithType(sub.Expression, golang.SQL92)
+	}
+	if sub.Expression == "" || sub.Expression == "*" {
+		return golang.SUB_ALL
+	}
+	return golang.NewFilterExpression(sub.Expression)
 }
 
 func (g *sdkGroup) start() error {
@@ -50,12 +71,8 @@ func (g *sdkGroup) start() error {
 		g.consumer = nil
 	}
 	expressions := make(map[string]*golang.FilterExpression, len(g.subs))
-	for topic, expr := range g.subs {
-		if expr == "*" {
-			expressions[topic] = golang.SUB_ALL
-		} else {
-			expressions[topic] = golang.NewFilterExpression(expr)
-		}
+	for topic, sub := range g.subs {
+		expressions[topic] = filterExpression(sub)
 	}
 	cfg := sdkConfig(g.cfg)
 	cfg.ConsumerGroup = g.group
@@ -88,12 +105,31 @@ func (g *sdkGroup) Receive(ctx context.Context, maxNum int32, invisible time.Dur
 		if value := view.GetTag(); value != nil {
 			tag = *value
 		}
+		group := ""
+		if value := view.GetMessageGroup(); value != nil {
+			group = *value
+		}
+		var bornAt, deliverAt time.Time
+		if value := view.GetBornTimestamp(); value != nil {
+			bornAt = *value
+		}
+		if value := view.GetDeliveryTimestamp(); value != nil {
+			deliverAt = *value
+		}
+		props := make(map[string]string, len(view.GetProperties()))
+		for key, value := range view.GetProperties() {
+			props[key] = value
+		}
 		out = append(out, inbound{
 			MessageID:       view.GetMessageId(),
 			Topic:           view.GetTopic(),
 			Body:            append([]byte(nil), view.GetBody()...),
 			Tag:             tag,
 			Keys:            append([]string(nil), view.GetKeys()...),
+			Properties:      props,
+			MessageGroup:    group,
+			BornAt:          bornAt,
+			DeliverAt:       deliverAt,
 			ReceiptHandle:   view.GetReceiptHandle(),
 			DeliveryAttempt: int(view.GetDeliveryAttempt()),
 		})
@@ -103,6 +139,10 @@ func (g *sdkGroup) Receive(ctx context.Context, maxNum int32, invisible time.Dur
 
 func (g *sdkGroup) Ack(ctx context.Context, receiptHandle, messageID, topic string) error {
 	return ackReceipt(ctx, g.consumer, g.group, "", receiptHandle, messageID, topic)
+}
+
+func (g *sdkGroup) ChangeInvisible(ctx context.Context, receiptHandle, messageID, topic string, invisible time.Duration) (string, error) {
+	return changeInvisibleReceipt(ctx, g.consumer, g.group, "", receiptHandle, messageID, topic, invisible)
 }
 
 func (g *sdkGroup) Close(ctx context.Context) error {
