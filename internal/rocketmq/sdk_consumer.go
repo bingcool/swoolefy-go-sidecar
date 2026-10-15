@@ -10,6 +10,12 @@ import (
 	v2 "github.com/apache/rocketmq-clients/golang/v5/protocol/v2"
 )
 
+// awaitDuration 加上 SDK 默认的 3 秒请求超时，是这一次 Receive 的上下文截止时间。
+// Proxy 5.x 在请求里没有 longPollingTimeout 时，用「剩余时间 - requestTimeout/2」做长轮询，
+// 并且不会短于 5 秒。15 秒会把空队列挂到约 16.5 秒。4 秒把长轮询压到这个下限附近。
+// 选中的队列里已经有消息时，broker 会马上返回，不会等满这一轮。
+const awaitDuration = 5 * time.Second
+
 type sdkFactory struct {
 	cfg Config
 }
@@ -77,7 +83,7 @@ func (g *sdkGroup) start() error {
 	cfg := sdkConfig(g.cfg)
 	cfg.ConsumerGroup = g.group
 	consumer, err := golang.NewSimpleConsumer(cfg,
-		golang.WithAwaitDuration(15*time.Second),
+		golang.WithAwaitDuration(awaitDuration),
 		golang.WithSubscriptionExpressions(expressions),
 	)
 	if err != nil {
